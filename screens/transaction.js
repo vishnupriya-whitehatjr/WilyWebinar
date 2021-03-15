@@ -1,9 +1,16 @@
 import React, { Component } from "react";
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  TextInput,
+  Image,
+} from "react-native";
 import * as Permissions from "expo-permissions";
 import { BarCodeScanner } from "expo-barcode-scanner";
 import { CAMERA } from "expo-permissions";
-
+import db from "../config";
 export default class Transaction extends Component {
   constructor() {
     super();
@@ -12,28 +19,53 @@ export default class Transaction extends Component {
       scannedData: "",
       scanned: false,
       buttonState: "normal",
+      scannedBookId: "",
+      scannedStudentId: "",
     };
   }
 
-  getCameraPermission = async () => {
+  getCameraPermission = async (id) => {
     const { status } = await Permissions.askAsync(Permissions.CAMERA);
     this.setState({
       hasCameraPermission: status === "granted",
       scannedData: "scan the data",
-      buttonState: "clicked",
+      buttonState: id,
       scanned: false,
     });
   };
-  handleBarCodeScanner = async ({ type, data }) => {
-    this.setState({
-      buttonState: "normal",
-      scanned: true,
-      scannedData: data,
-    });
+  handleBarCodeScanner = async ({ data }) => {
+    const { buttonState } = this.state;
+    if (buttonState === "BookId") {
+      this.setState({
+        scanned: true,
+        scannedBookId: data,
+        buttonState: "normal",
+      });
+    } else if (buttonState === "StudentId") {
+      this.setState({
+        scanned: true,
+        scannedStudentId: data,
+        buttonState: "normal",
+      });
+    }
+  };
+  handleTransaction = () => {
+    db.collection("books")
+      .doc(this.state.scannedBookId)
+      .get()
+      .then((doc) => {
+        console.log(doc.data());
+        var book = doc.data();
+        if (book.bookAvail) {
+          this.initiateBookIssue();
+        } else {
+          this.initiateBookReturn();
+        }
+      });
   };
   render() {
     const camPermission = this.state.hasCameraPermission;
-    if (this.state.buttonState == "clicked" && camPermission) {
+    if (this.state.buttonState !== "normal" && camPermission) {
       return (
         <BarCodeScanner
           onBarCodeScanned={
@@ -45,24 +77,46 @@ export default class Transaction extends Component {
     } else if (this.state.buttonState === "normal") {
       return (
         <View style={styles.container}>
-          <Text>
-            {camPermission === true
-              ? this.state.scannedData
-              : "request camera permission"}
-          </Text>
+          <Image
+            source={require("../assets/booklogo.jpg")}
+            // style={{ width: 100, height: 100 }}
+          />
+          <View style={styles.inputView}>
+            <TextInput
+              placeholder=" Book Id"
+              style={styles.inputBox}
+              value={this.state.scannedBookId}
+            />
+            <TouchableOpacity
+              style={styles.scanButton}
+              onPress={() => {
+                this.getCameraPermission("BookId");
+              }}
+            >
+              <Text style={styles.buttonText}>Scan</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.inputView}>
+            <TextInput
+              placeholder=" Student Id"
+              style={styles.inputBox}
+              value={this.state.scannedStudentId}
+            />
+            <TouchableOpacity
+              style={styles.scanButton}
+              onPress={() => {
+                this.getCameraPermission("StudentId");
+              }}
+            >
+              <Text style={styles.buttonText}>Scan</Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity
-            style={{
-              backgroundColor: "lightblue",
-              width: 100,
-              height: 50,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
             onPress={() => {
-              this.getCameraPermission();
+              this.handleTransaction();
             }}
           >
-            <Text>scan QR Code</Text>
+            <Text>Submit</Text>
           </TouchableOpacity>
         </View>
       );
